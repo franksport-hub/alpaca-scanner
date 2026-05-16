@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finviz-Style Gap Scanner</title>
+    <title>Screener: Gap-Ups</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
         .container { max-width: 1000px; margin: auto; background: #161b22; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #30363d; }
         h1 { color: #58a6ff; font-size: 1.5em; border-bottom: 1px solid #30363d; padding-bottom: 10px; margin-top: 0; }
         
-        /* Grid Layout voor de Filters */
         .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 15px; }
         .form-group { display: flex; flex-direction: column; }
         label { font-size: 0.85em; font-weight: bold; color: #8b949e; margin-bottom: 5px; }
@@ -18,13 +17,12 @@
         }
         
         .full-width { grid-column: 1 / -1; }
-        textarea { width: 100%; padding: 10px; border: 1px solid #30363d; border-radius: 4px; background: #0d1117; color: #c9d1d9; font-family: monospace; height: 60px; resize: vertical; box-sizing: border-box;}
+        textarea { width: 100%; padding: 10px; border: 1px solid #30363d; border-radius: 4px; background: #0d1117; color: #c9d1d9; font-family: monospace; height: 100px; resize: vertical; box-sizing: border-box;}
         
         button { background-color: #238636; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; width: 100%; transition: 0.2s; }
         button:hover { background-color: #2ea043; }
         button:disabled { background-color: #21262d; color: #8b949e; cursor: not-allowed; }
         
-        /* Finviz-Style Tabel */
         .table-container { margin-top: 20px; overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 0.9em; text-align: right; }
         th, td { padding: 12px 10px; border-bottom: 1px solid #30363d; }
@@ -40,7 +38,7 @@
         .action-link:hover { background: #388bfd; }
         
         #statusMessage { margin-top: 15px; font-size: 0.9em; font-family: monospace; color: #8b949e; }
-        .copy-box { margin-top: 15px; display: none; }
+        .copy-box { margin-top: 15px; display: none; background: #1c2128; padding: 10px; border-radius: 6px; border: 1px solid #3fb950; }
     </style>
 </head>
 <body>
@@ -87,16 +85,16 @@
     </div>
     
     <div class="form-group full-width" style="margin-bottom: 15px;">
-        <label>Ticker Universe (Komma gescheiden)</label>
-        <textarea id="tickers">AAPL, TSLA, NVDA, AMD, PLTR, HOOD, ROKU, SQ, COIN, META, SOFI, MARA, RIOT, SNOW, U</textarea>
+        <label>Ticker Universe (Kopieer/Plak direct uit Excel of TOS)</label>
+        <textarea id="tickers">AAPL, TSLA, NVDA</textarea>
     </div>
     
     <button id="startScan">Scan Uitvoeren</button>
     <div id="statusMessage">Klaar om te scannen... Zorg dat je datums kiest waarop de beurs open was!</div>
     
     <div class="copy-box" id="copyBox">
-        <label>Kopieer deze lijst naar ThinkOrSwim:</label>
-        <input type="text" id="finalTickers" readonly style="width: 100%;">
+        <label style="color: #3fb950;">Kopieer deze lijst naar ThinkOrSwim OnDemand:</label>
+        <input type="text" id="finalTickers" readonly style="width: 100%; margin-top: 5px;">
     </div>
 
     <div class="table-container">
@@ -125,99 +123,96 @@
     const finalTickersInput = document.getElementById('finalTickers');
 
     btn.addEventListener('click', async () => {
-        // Haal API keys en data op
-        const apiKey = document.getElementById('apiKey').value.trim();
-        const apiSecret = document.getElementById('apiSecret').value.trim();
-        const dateYesterday = document.getElementById('dateYesterday').value;
-        const dateToday = document.getElementById('dateToday').value;
-        const tickersRaw = document.getElementById('tickers').value;
-
-        // Haal Filters op
-        const minPrice = parseFloat(document.getElementById('minPrice').value) || 0;
-        const maxPrice = parseFloat(document.getElementById('maxPrice').value) || 9999;
-        const minVol = parseInt(document.getElementById('minVol').value) || 0;
-        const minGap = parseFloat(document.getElementById('minGap').value) || 0;
-
-        if(!apiKey || !apiSecret || !dateYesterday || !dateToday || !tickersRaw) {
-            statusMsg.innerText = "Vul alle velden in (API keys en datums).";
-            return;
-        }
-
-        // Deze regex splitst de lijst op komma's, spaties én nieuwe regels (enters)
-        const tickers = tickersRaw.split(/[\n\s,]+/).map(t => t.trim().toUpperCase()).filter(t => t);
-        
-        btn.disabled = true;
-        tableBody.innerHTML = "";
-        copyBox.style.display = "none";
-        statusMsg.innerText = `Data ophalen voor ${tickers.length} tickers via Alpaca...`;
-
-        const url = `https://data.alpaca.markets/v2/stocks/bars?symbols=${tickers.join(',')}&timeframe=1Day&start=${dateYesterday}&end=${dateToday}&adjustment=all`;
-
         try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: { 'APCA-API-KEY-ID': apiKey, 'APCA-API-SECRET-KEY': apiSecret, 'Accept': 'application/json' }
-            });
+            // Check direct of de knop reageert
+            statusMsg.innerText = "Bezig met ophalen van invoer...";
+            btn.disabled = true;
 
-            if (!response.ok) throw new Error(`API fout: ${response.status} - ${response.statusText}`);
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const apiSecret = document.getElementById('apiSecret').value.trim();
+            const dateYesterday = document.getElementById('dateYesterday').value;
+            const dateToday = document.getElementById('dateToday').value;
+            const tickersRaw = document.getElementById('tickers').value;
 
-            const data = await response.json();
-            const bars = data.bars;
-            let results = [];
+            const minPrice = parseFloat(document.getElementById('minPrice').value) || 0;
+            const maxPrice = parseFloat(document.getElementById('maxPrice').value) || 9999;
+            const minVol = parseInt(document.getElementById('minVol').value) || 0;
+            const minGap = parseFloat(document.getElementById('minGap').value) || 0;
 
-            if(Object.keys(bars).length === 0) {
-                statusMsg.innerText = "Geen data gevonden. Controleer de datums (was de beurs open?).";
+            if(!apiKey || !apiSecret || !dateYesterday || !dateToday || !tickersRaw) {
+                statusMsg.innerText = "Fout: Vul alle velden in (API keys en datums).";
                 btn.disabled = false;
                 return;
             }
 
-            statusMsg.innerText = `Data ontvangen. Filters toepassen...`;
+            // Split de tickers (werkt met komma's, spaties en enters)
+            const tickers = tickersRaw.split(/[\n\s,]+/).map(t => t.trim().toUpperCase()).filter(t => t);
 
-            for (const ticker in bars) {
-                const tickerData = bars[ticker];
-                
-                // Belangrijke check: we moeten exact 2 candles hebben.
-                // Als je een weekenddag selecteert, geeft Alpaca maar 1 candle terug.
-                if (tickerData.length >= 2) {
-                    
-                    // Zorg dat we echt de laatste twee in de array pakken (chronologisch)
-                    tickerData.sort((a, b) => new Date(a.t) - new Date(b.t));
-                    const yesterday = tickerData[tickerData.length - 2];
-                    const today = tickerData[tickerData.length - 1];
-
-                    const prevClose = yesterday.c;
-                    const prevVolume = yesterday.v;
-                    const openToday = today.o;
-
-                    // Bereken Gap
-                    const gapPercentage = ((openToday - prevClose) / prevClose) * 100;
-
-                    // Pas de Finviz filters toe
-                    if (prevClose >= minPrice && prevClose <= maxPrice && prevVolume >= minVol && gapPercentage >= minGap) {
-                        results.push({
-                            ticker: ticker,
-                            prevClose: prevClose,
-                            openToday: openToday,
-                            gapPct: gapPercentage,
-                            volume: prevVolume
-                        });
-                    }
-                }
+            if(tickers.length === 0) {
+                 statusMsg.innerText = "Fout: Geen geldige tickers gevonden in het tekstvak.";
+                 btn.disabled = false;
+                 return;
             }
 
-            // Sorteer op Gap % (hoogste bovenaan, net als Finviz)
-            results.sort((a, b) => b.gapPct - a.gapPct);
+            tableBody.innerHTML = "";
+            copyBox.style.display = "none";
+            statusMsg.innerText = `Lijst scannen... ${tickers.length} tickers gevonden. Data ophalen via Alpaca...`;
 
-            if(results.length > 0) {
-                statusMsg.innerText = `${results.length} kandidaten gevonden!`;
-                
-                // Vul de tabel
-                results.forEach(r => {
-                    const row = document.createElement('tr');
+            let allResults = [];
+            let processedCount = 0;
+            const chunkSize = 100; // Voorkomt dat de URL te lang wordt
+
+            for (let i = 0; i < tickers.length; i += chunkSize) {
+                const chunk = tickers.slice(i, i + chunkSize);
+                const url = `https://data.alpaca.markets/v2/stocks/bars?symbols=${chunk.join(',')}&timeframe=1Day&start=${dateYesterday}&end=${dateToday}&adjustment=all`;
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'APCA-API-KEY-ID': apiKey, 'APCA-API-SECRET-KEY': apiSecret, 'Accept': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API Foutmelding: ${response.status} - ${response.statusText}. Check of je API keys kloppen.`);
+                }
+
+                const data = await response.json();
+                const bars = data.bars || {};
+
+                for (const ticker in bars) {
+                    const tickerData = bars[ticker];
                     
-                    // Formatteer volume naar miljoenen (bijv. 1.2M)
-                    const volFormatted = r.volume >= 1000000 
-                        ? (r.volume / 1000000).toFixed(2) + 'M' 
+                    // We hebben 2 dagen aan data nodig voor deze berekening
+                    if (tickerData.length >= 2) {
+                        tickerData.sort((a, b) => new Date(a.t) - new Date(b.t));
+                        const yesterday = tickerData[tickerData.length - 2];
+                        const today = tickerData[tickerData.length - 1];
+
+                        const prevClose = yesterday.c;
+                        const prevVolume = yesterday.v;
+                        const openToday = today.o;
+
+                        const gapPercentage = ((openToday - prevClose) / prevClose) * 100;
+
+                        // Filters toepassen
+                        if (prevClose >= minPrice && prevClose <= maxPrice && prevVolume >= minVol && gapPercentage >= minGap) {
+                            allResults.push({ ticker, prevClose, openToday, gapPct: gapPercentage, volume: prevVolume });
+                        }
+                    }
+                }
+                
+                processedCount += chunk.length;
+                statusMsg.innerText = `Voortgang: ${processedCount} van de ${tickers.length} tickers gescand...`;
+            }
+
+            allResults.sort((a, b) => b.gapPct - a.gapPct);
+
+            if(allResults.length > 0) {
+                statusMsg.innerText = `Klaar! ${allResults.length} kandidaten gevonden.`;
+
+                allResults.forEach(r => {
+                    const row = document.createElement('tr');
+                    const volFormatted = r.volume >= 1000000
+                        ? (r.volume / 1000000).toFixed(2) + 'M'
                         : (r.volume / 1000).toFixed(0) + 'K';
 
                     row.innerHTML = `
@@ -226,4 +221,27 @@
                         <td>$${r.openToday.toFixed(2)}</td>
                         <td class="pos">+${r.gapPct.toFixed(2)}%</td>
                         <td>${volFormatted}</td>
-                        <td><a href="https://finviz.com/quote.ashx?t=${r.ticker}" target="_blank" class="action-link">Finviz Chart
+                        <td><a href="https://finviz.com/quote.ashx?t=${r.ticker}" target="_blank" class="action-link">Chart</a></td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+
+                const validTickers = allResults.map(r => r.ticker);
+                copyBox.style.display = "block";
+                finalTickersInput.value = validTickers.join(', ');
+            } else {
+                statusMsg.innerText = "Scan voltooid. Geen enkel aandeel voldeed aan jouw specifieke filters op deze datums.";
+            }
+
+        } catch (error) {
+            // Als er ook maar iets misgaat (code, netwerk, API), laat hij het nu hier op het scherm zien!
+            statusMsg.innerText = `Fout: ${error.message}`;
+            console.error(error);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
