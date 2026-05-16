@@ -3,190 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alpaca Gapper Pre-Scanner</title>
+    <title>Finviz-Style Gap Scanner</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-        h1 { color: #2196F3; font-size: 1.5em; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9em; color: #aaa; }
-        input[type="text"], input[type="date"], input[type="password"], textarea {
-            width: 100%; padding: 10px; border: 1px solid #444; border-radius: 4px;
-            background: #2c2c2c; color: #fff; box-sizing: border-box; font-family: monospace;
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: #161b22; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #30363d; }
+        h1 { color: #58a6ff; font-size: 1.5em; border-bottom: 1px solid #30363d; padding-bottom: 10px; margin-top: 0; }
+        
+        /* Grid Layout voor de Filters */
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .form-group { display: flex; flex-direction: column; }
+        label { font-size: 0.85em; font-weight: bold; color: #8b949e; margin-bottom: 5px; }
+        input[type="text"], input[type="number"], input[type="date"], input[type="password"] {
+            padding: 8px; border: 1px solid #30363d; border-radius: 4px; background: #0d1117; color: #c9d1d9; font-family: monospace;
         }
-        textarea { height: 100px; resize: vertical; }
-        .row { display: flex; gap: 15px; }
-        .col { flex: 1; }
-        button {
-            background-color: #2196F3; color: white; border: none; padding: 12px 20px;
-            border-radius: 4px; cursor: pointer; font-size: 1em; width: 100%; font-weight: bold;
-        }
-        button:hover { background-color: #1976D2; }
-        button:disabled { background-color: #555; cursor: not-allowed; }
-        .log-area {
-            background: #000; padding: 15px; border-radius: 4px; height: 350px;
-            overflow-y: auto; font-family: monospace; font-size: 0.9em; margin-top: 20px;
-            border: 1px solid #333; white-space: pre-wrap;
-        }
-        .success { color: #00ff00; font-weight: bold; }
-        .error { color: #ff5555; }
-        .info { color: #88ccff; }
-        .result-box { margin-top: 15px; padding: 10px; border: 1px solid #4CAF50; background: #1b3320; border-radius: 4px; display: none;}
+        
+        .full-width { grid-column: 1 / -1; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #30363d; border-radius: 4px; background: #0d1117; color: #c9d1d9; font-family: monospace; height: 60px; resize: vertical; box-sizing: border-box;}
+        
+        button { background-color: #238636; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; width: 100%; transition: 0.2s; }
+        button:hover { background-color: #2ea043; }
+        button:disabled { background-color: #21262d; color: #8b949e; cursor: not-allowed; }
+        
+        /* Finviz-Style Tabel */
+        .table-container { margin-top: 20px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; text-align: right; }
+        th, td { padding: 12px 10px; border-bottom: 1px solid #30363d; }
+        th { background-color: #21262d; color: #c9d1d9; text-align: right; font-weight: bold; position: sticky; top: 0; }
+        th:first-child, td:first-child { text-align: left; }
+        tr:hover { background-color: #1c2128; }
+        
+        .ticker { font-weight: bold; color: #58a6ff; }
+        .pos { color: #3fb950; font-weight: bold; }
+        .neg { color: #f85149; font-weight: bold; }
+        
+        .action-link { background: #1f6feb; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.8em; }
+        .action-link:hover { background: #388bfd; }
+        
+        #statusMessage { margin-top: 15px; font-size: 0.9em; font-family: monospace; color: #8b949e; }
+        .copy-box { margin-top: 15px; display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Alpaca Pre-Scanner (Gap-Ups)</h1>
+    <h1>Screener: Gap-Ups</h1>
     
-    <div class="row">
-        <div class="form-group col">
+    <div class="filter-grid">
+        <div class="form-group">
             <label>API Key ID</label>
             <input type="text" id="apiKey" placeholder="AK...">
         </div>
-        <div class="form-group col">
+        <div class="form-group">
             <label>Secret Key</label>
-            <input type="password" id="apiSecret" placeholder="Jouw secret key...">
+            <input type="password" id="apiSecret" placeholder="Secret...">
         </div>
-    </div>
-    
-    <div class="row">
-        <div class="form-group col">
-            <label>Datum Gisteren (Referentie)</label>
-            <input type="date" id="dateYesterday" title="De dag om de slotkoers en het volume te bepalen">
+        <div class="form-group">
+            <label>Vorige Handelsdag</label>
+            <input type="date" id="dateYesterday">
         </div>
-        <div class="form-group col">
-            <label>Datum Vandaag (Uitbraakdag)</label>
-            <input type="date" id="dateToday" title="De dag waarop de gap-up plaatsvindt">
+        <div class="form-group">
+            <label>Scan Dag (Gap up dag)</label>
+            <input type="date" id="dateToday">
         </div>
-    </div>
-    
-    <div class="form-group">
-        <label>Mid/Large Cap Ticker Lijst (Komma gescheiden)</label>
-        <textarea id="tickers">AAPL, TSLA, NVDA, AMD, PLTR, HOOD, ROKU, SQ, COIN, META</textarea>
-    </div>
-    
-    <button id="startScan">Vind Kandidaten</button>
-    
-    <div class="result-box" id="resultBox">
-        <label>Kopieer deze lijst naar ThinkOrSwim OnDemand:</label>
-        <input type="text" id="finalTickers" readonly>
     </div>
 
-    <div class="log-area" id="logArea"></div>
+    <div class="filter-grid" style="background: #21262d; padding: 15px; border-radius: 6px;">
+        <div class="form-group">
+            <label>Min Prijs ($)</label>
+            <input type="number" id="minPrice" value="3" step="0.5">
+        </div>
+        <div class="form-group">
+            <label>Max Prijs ($)</label>
+            <input type="number" id="maxPrice" value="25" step="0.5">
+        </div>
+        <div class="form-group">
+            <label>Min Volume</label>
+            <input type="number" id="minVol" value="500000" step="50000">
+        </div>
+        <div class="form-group">
+            <label>Min Gap %</label>
+            <input type="number" id="minGap" value="1.0" step="0.5">
+        </div>
+    </div>
+    
+    <div class="form-group full-width" style="margin-bottom: 15px;">
+        <label>Ticker Universe (Komma gescheiden)</label>
+        <textarea id="tickers">AAPL, TSLA, NVDA, AMD, PLTR, HOOD, ROKU, SQ, COIN, META, SOFI, MARA, RIOT, SNOW, U</textarea>
+    </div>
+    
+    <button id="startScan">Scan Uitvoeren</button>
+    <div id="statusMessage">Klaar om te scannen... Zorg dat je datums kiest waarop de beurs open was!</div>
+    
+    <div class="copy-box" id="copyBox">
+        <label>Kopieer deze lijst naar ThinkOrSwim:</label>
+        <input type="text" id="finalTickers" readonly style="width: 100%;">
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Vorige Close</th>
+                    <th>Vandaag Open</th>
+                    <th>Gap %</th>
+                    <th>Volume (Gisteren)</th>
+                    <th>Chart</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+                </tbody>
+        </table>
+    </div>
 </div>
 
 <script>
-    const logArea = document.getElementById('logArea');
-    const resultBox = document.getElementById('resultBox');
+    const btn = document.getElementById('startScan');
+    const statusMsg = document.getElementById('statusMessage');
+    const tableBody = document.getElementById('resultsTableBody');
+    const copyBox = document.getElementById('copyBox');
     const finalTickersInput = document.getElementById('finalTickers');
-    
-    function log(message, type="normal") {
-        const p = document.createElement('div');
-        p.textContent = message;
-        if(type === "success") p.className = "success";
-        if(type === "error") p.className = "error";
-        if(type === "info") p.className = "info";
-        logArea.appendChild(p);
-        logArea.scrollTop = logArea.scrollHeight;
-    }
 
-    document.getElementById('startScan').addEventListener('click', async () => {
+    btn.addEventListener('click', async () => {
+        // Haal API keys en data op
         const apiKey = document.getElementById('apiKey').value.trim();
         const apiSecret = document.getElementById('apiSecret').value.trim();
         const dateYesterday = document.getElementById('dateYesterday').value;
         const dateToday = document.getElementById('dateToday').value;
         const tickersRaw = document.getElementById('tickers').value;
 
+        // Haal Filters op
+        const minPrice = parseFloat(document.getElementById('minPrice').value) || 0;
+        const maxPrice = parseFloat(document.getElementById('maxPrice').value) || 9999;
+        const minVol = parseInt(document.getElementById('minVol').value) || 0;
+        const minGap = parseFloat(document.getElementById('minGap').value) || 0;
+
         if(!apiKey || !apiSecret || !dateYesterday || !dateToday || !tickersRaw) {
-            log("Vul alle velden in.", "error");
+            statusMsg.innerText = "Vul alle velden in (API keys en datums).";
             return;
         }
 
-        // Alpaca kan ongeveer 1000 tickers per call aan, dus we strippen de spaties
         const tickers = tickersRaw.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
         
-        document.getElementById('startScan').disabled = true;
-        logArea.innerHTML = "";
-        resultBox.style.display = "none";
-        log(`Start filter voor ${tickers.length} tickers...`, "info");
-        log(`Referentiedatum (gisteren): ${dateYesterday}`);
-        log(`Scan datum (vandaag): ${dateToday}\n`);
+        btn.disabled = true;
+        tableBody.innerHTML = "";
+        copyBox.style.display = "none";
+        statusMsg.innerText = `Data ophalen voor ${tickers.length} tickers via Alpaca...`;
 
-        // Zorg dat we de data van beide dagen opvragen
         const url = `https://data.alpaca.markets/v2/stocks/bars?symbols=${tickers.join(',')}&timeframe=1Day&start=${dateYesterday}&end=${dateToday}&adjustment=all`;
 
         try {
-            log(`Data ophalen via Alpaca API...`);
             const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    'APCA-API-KEY-ID': apiKey,
-                    'APCA-API-SECRET-KEY': apiSecret,
-                    'Accept': 'application/json'
-                }
+                headers: { 'APCA-API-KEY-ID': apiKey, 'APCA-API-SECRET-KEY': apiSecret, 'Accept': 'application/json' }
             });
 
-            if (!response.ok) {
-                throw new Error(`API fout: ${response.status} - ${response.statusText}`);
-            }
+            if (!response.ok) throw new Error(`API fout: ${response.status} - ${response.statusText}`);
 
             const data = await response.json();
             const bars = data.bars;
-            const validCandidates = [];
+            let results = [];
 
             if(Object.keys(bars).length === 0) {
-                log("Geen data gevonden. Controleer of de beurs open was op deze datums.", "error");
-                document.getElementById('startScan').disabled = false;
+                statusMsg.innerText = "Geen data gevonden. Controleer de datums (was de beurs open?).";
+                btn.disabled = false;
                 return;
             }
 
-            log(`Data succesvol ontvangen. Starten met filteren ($3-$25, >500k vol, Gap-up)...\n`, "info");
+            statusMsg.innerText = `Data ontvangen. Filters toepassen...`;
 
             for (const ticker in bars) {
                 const tickerData = bars[ticker];
                 
-                // We hebben minimaal 2 dagen aan data nodig voor deze berekening
+                // Belangrijke check: we moeten exact 2 candles hebben.
+                // Als je een weekenddag selecteert, geeft Alpaca maar 1 candle terug.
                 if (tickerData.length >= 2) {
-                    // De API geeft data chronologisch terug. 
-                    // Index 0 = Gisteren, Index 1 = Vandaag
-                    const yesterday = tickerData[0];
-                    const today = tickerData[1];
+                    
+                    // Zorg dat we echt de laatste twee in de array pakken (chronologisch)
+                    tickerData.sort((a, b) => new Date(a.t) - new Date(b.t));
+                    const yesterday = tickerData[tickerData.length - 2];
+                    const today = tickerData[tickerData.length - 1];
 
                     const prevClose = yesterday.c;
                     const prevVolume = yesterday.v;
                     const openToday = today.o;
 
-                    // Jouw criteria:
-                    const isCorrectPrice = prevClose >= 3 && prevClose <= 25;
-                    const isEnoughVolume = prevVolume >= 500000;
-                    const isGapUp = openToday > prevClose;
+                    // Bereken Gap
+                    const gapPercentage = ((openToday - prevClose) / prevClose) * 100;
 
-                    if (isCorrectPrice && isEnoughVolume && isGapUp) {
-                        const gapPercentage = (((openToday - prevClose) / prevClose) * 100).toFixed(2);
-                        log(`[${ticker}] Geselecteerd! Slot: $${prevClose}, Vol: ${(prevVolume/1000000).toFixed(2)}M, Open: $${openToday} (+${gapPercentage}%)`, "success");
-                        validCandidates.push(ticker);
+                    // Pas de Finviz filters toe
+                    if (prevClose >= minPrice && prevClose <= maxPrice && prevVolume >= minVol && gapPercentage >= minGap) {
+                        results.push({
+                            ticker: ticker,
+                            prevClose: prevClose,
+                            openToday: openToday,
+                            gapPct: gapPercentage,
+                            volume: prevVolume
+                        });
                     }
-                } else {
-                    // Mocht er maar 1 dag data zijn (bijv. een IPO of foute datum)
-                    log(`[${ticker}] Genegeerd: Onvoldoende data voor deze twee datums.`);
                 }
             }
 
-            log(`\nScan voltooid! ${validCandidates.length} kandidaten gevonden.`, "info");
-            
-            if(validCandidates.length > 0) {
-                resultBox.style.display = "block";
-                finalTickersInput.value = validCandidates.join(', ');
-            }
+            // Sorteer op Gap % (hoogste bovenaan, net als Finviz)
+            results.sort((a, b) => b.gapPct - a.gapPct);
 
-        } catch (error) {
-            log(`Netwerk of API fout: ${error.message}`, "error");
-        }
-        
-        document.getElementById('startScan').disabled = false;
-    });
-</script>
+            if(results.length > 0) {
+                statusMsg.innerText = `${results.length} kandidaten gevonden!`;
+                
+                // Vul de tabel
+                results.forEach(r => {
+                    const row = document.createElement('tr');
+                    
+                    // Formatteer volume naar miljoenen (bijv. 1.2M)
+                    const volFormatted = r.volume >= 1000000 
+                        ? (r.volume / 1000000).toFixed(2) + 'M' 
+                        : (r.volume / 1000).toFixed(0) + 'K';
 
-</body>
-</html>
+                    row.innerHTML = `
+                        <td class="ticker">${r.ticker}</td>
+                        <td>$${r.prevClose.toFixed(2)}</td>
+                        <td>$${r.openToday.toFixed(2)}</td>
+                        <td class="pos">+${r.gapPct.toFixed(2)}%</td>
+                        <td>${volFormatted}</td>
+                        <td><a href="https://finviz.com/quote.ashx?t=${r.ticker}" target="_blank" class="action-link">Finviz Chart
