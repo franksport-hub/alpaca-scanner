@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpaca Gapper Pre-Scanner</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        h1 { color: #2196F3; font-size: 1.5em; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9em; color: #aaa; }
+        input[type="text"], input[type="date"], input[type="password"], textarea {
+            width: 100%; padding: 10px; border: 1px solid #444; border-radius: 4px;
+            background: #2c2c2c; color: #fff; box-sizing: border-box; font-family: monospace;
+        }
+        textarea { height: 100px; resize: vertical; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        button {
+            background-color: #2196F3; color: white; border: none; padding: 12px 20px;
+            border-radius: 4px; cursor: pointer; font-size: 1em; width: 100%; font-weight: bold;
+        }
+        button:hover { background-color: #1976D2; }
+        button:disabled { background-color: #555; cursor: not-allowed; }
+        .log-area {
+            background: #000; padding: 15px; border-radius: 4px; height: 350px;
+            overflow-y: auto; font-family: monospace; font-size: 0.9em; margin-top: 20px;
+            border: 1px solid #333; white-space: pre-wrap;
+        }
+        .success { color: #00ff00; font-weight: bold; }
+        .error { color: #ff5555; }
+        .info { color: #88ccff; }
+        .result-box { margin-top: 15px; padding: 10px; border: 1px solid #4CAF50; background: #1b3320; border-radius: 4px; display: none;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Alpaca Pre-Scanner (Gap-Ups)</h1>
+    
+    <div class="row">
+        <div class="form-group col">
+            <label>API Key ID</label>
+            <input type="text" id="apiKey" placeholder="AK...">
+        </div>
+        <div class="form-group col">
+            <label>Secret Key</label>
+            <input type="password" id="apiSecret" placeholder="Jouw secret key...">
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="form-group col">
+            <label>Datum Gisteren (Referentie)</label>
+            <input type="date" id="dateYesterday" title="De dag om de slotkoers en het volume te bepalen">
+        </div>
+        <div class="form-group col">
+            <label>Datum Vandaag (Uitbraakdag)</label>
+            <input type="date" id="dateToday" title="De dag waarop de gap-up plaatsvindt">
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label>Mid/Large Cap Ticker Lijst (Komma gescheiden)</label>
+        <textarea id="tickers">AAPL, TSLA, NVDA, AMD, PLTR, HOOD, ROKU, SQ, COIN, META</textarea>
+    </div>
+    
+    <button id="startScan">Vind Kandidaten</button>
+    
+    <div class="result-box" id="resultBox">
+        <label>Kopieer deze lijst naar ThinkOrSwim OnDemand:</label>
+        <input type="text" id="finalTickers" readonly>
+    </div>
+
+    <div class="log-area" id="logArea"></div>
+</div>
+
+<script>
+    const logArea = document.getElementById('logArea');
+    const resultBox = document.getElementById('resultBox');
+    const finalTickersInput = document.getElementById('finalTickers');
+    
+    function log(message, type="normal") {
+        const p = document.createElement('div');
+        p.textContent = message;
+        if(type === "success") p.className = "success";
+        if(type === "error") p.className = "error";
+        if(type === "info") p.className = "info";
+        logArea.appendChild(p);
+        logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    document.getElementById('startScan').addEventListener('click', async () => {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const apiSecret = document.getElementById('apiSecret').value.trim();
+        const dateYesterday = document.getElementById('dateYesterday').value;
+        const dateToday = document.getElementById('dateToday').value;
+        const tickersRaw = document.getElementById('tickers').value;
+
+        if(!apiKey || !apiSecret || !dateYesterday || !dateToday || !tickersRaw) {
+            log("Vul alle velden in.", "error");
+            return;
+        }
+
+        // Alpaca kan ongeveer 1000 tickers per call aan, dus we strippen de spaties
+        const tickers = tickersRaw.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+        
+        document.getElementById('startScan').disabled = true;
+        logArea.innerHTML = "";
+        resultBox.style.display = "none";
+        log(`Start filter voor ${tickers.length} tickers...`, "info");
+        log(`Referentiedatum (gisteren): ${dateYesterday}`);
+        log(`Scan datum (vandaag): ${dateToday}\n`);
+
+        // Zorg dat we de data van beide dagen opvragen
+        const url = `https://data.alpaca.markets/v2/stocks/bars?symbols=${tickers.join(',')}&timeframe=1Day&start=${dateYesterday}&end=${dateToday}&adjustment=all`;
+
+        try {
+            log(`Data ophalen via Alpaca API...`);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'APCA-API-KEY-ID': apiKey,
+                    'APCA-API-SECRET-KEY': apiSecret,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API fout: ${response.status} - ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const bars = data.bars;
+            const validCandidates = [];
+
+            if(Object.keys(bars).length === 0) {
+                log("Geen data gevonden. Controleer of de beurs open was op deze datums.", "error");
+                document.getElementById('startScan').disabled = false;
+                return;
+            }
+
+            log(`Data succesvol ontvangen. Starten met filteren ($3-$25, >500k vol, Gap-up)...\n`, "info");
+
+            for (const ticker in bars) {
+                const tickerData = bars[ticker];
+                
+                // We hebben minimaal 2 dagen aan data nodig voor deze berekening
+                if (tickerData.length >= 2) {
+                    // De API geeft data chronologisch terug. 
+                    // Index 0 = Gisteren, Index 1 = Vandaag
+                    const yesterday = tickerData[0];
+                    const today = tickerData[1];
+
+                    const prevClose = yesterday.c;
+                    const prevVolume = yesterday.v;
+                    const openToday = today.o;
+
+                    // Jouw criteria:
+                    const isCorrectPrice = prevClose >= 3 && prevClose <= 25;
+                    const isEnoughVolume = prevVolume >= 500000;
+                    const isGapUp = openToday > prevClose;
+
+                    if (isCorrectPrice && isEnoughVolume && isGapUp) {
+                        const gapPercentage = (((openToday - prevClose) / prevClose) * 100).toFixed(2);
+                        log(`[${ticker}] Geselecteerd! Slot: $${prevClose}, Vol: ${(prevVolume/1000000).toFixed(2)}M, Open: $${openToday} (+${gapPercentage}%)`, "success");
+                        validCandidates.push(ticker);
+                    }
+                } else {
+                    // Mocht er maar 1 dag data zijn (bijv. een IPO of foute datum)
+                    log(`[${ticker}] Genegeerd: Onvoldoende data voor deze twee datums.`);
+                }
+            }
+
+            log(`\nScan voltooid! ${validCandidates.length} kandidaten gevonden.`, "info");
+            
+            if(validCandidates.length > 0) {
+                resultBox.style.display = "block";
+                finalTickersInput.value = validCandidates.join(', ');
+            }
+
+        } catch (error) {
+            log(`Netwerk of API fout: ${error.message}`, "error");
+        }
+        
+        document.getElementById('startScan').disabled = false;
+    });
+</script>
+
+</body>
+</html>
