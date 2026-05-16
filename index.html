@@ -143,7 +143,8 @@
             return;
         }
 
-        const tickers = tickersRaw.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
+        // Deze regex splitst de lijst op komma's, spaties én nieuwe regels (enters)
+        const tickers = tickersRaw.split(/[\n\s,]+/).map(t => t.trim().toUpperCase()).filter(t => t);
         
         btn.disabled = true;
         tableBody.innerHTML = "";
